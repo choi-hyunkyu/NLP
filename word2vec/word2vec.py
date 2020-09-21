@@ -72,10 +72,10 @@ vocabs = vector_np.vocab.keys()
 vector_list = [vector_np[v] for v in vocabs]
 
 # pre-trained 모델 단어 수
-print(len(list(vector_np.vocab.keys())))
+print(len(list(vocabs)))
 
 # 단어 출력
-print(list(vector_np.vocab.keys())[0])
+print(list(vocabs)[0])
 
 # 단어 벡터 출력
 len(vector_list)
