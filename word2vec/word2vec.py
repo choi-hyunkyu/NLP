@@ -65,7 +65,7 @@ model_new.save('./data/model_new.bin')
 model = w2v.load('./data/model_new.bin')
 
 '''
-단어 벡터화
+단어 불러오기
 '''
 vector_np = model.wv
 vocabs = vector_np.vocab.keys()
