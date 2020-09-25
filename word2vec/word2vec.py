@@ -1,81 +1,104 @@
+from ckonlpy.tag import Twitter, Postprocessor
 from gensim.models import Word2Vec as w2v
-from konlpy.tag import Okt
-import gensim
 import pandas as pd
 import numpy as np
+import torch
 
-'''
-데이터 불러오기 및 결측치 확인
-'''
-fixed_data_df = pd.read_csv('./data/original_data.csv')
-fixed_data_df.isnull().sum()
-fixed_data_df.shape
+# 데이터 불러오기
+with open('./data/KCC940_Korean_sentences_UTF8.txt', 'r') as text_file:
+    sentence_list = text_file.readlines()
+print('문장개수: ', len(sentence_list), '문장'), print('파일크기: ', 954231, 'KB')
 
-'''
-공백 제거
-'''
-fixed_data_df['document'] = fixed_data_df['document'].str.strip()
+sentence_df = pd.DataFrame({'sentence': sentence_list})
+sentence_df.head()
 
-'''
-정규 표현식 사용
-'''
-fixed_data_df['document'] = fixed_data_df['document'].str.replace("[^ㄱ-ㅎㅏ-ㅣ가-힣 ]","")
-fixed_data_df['document'].replace('', np.nan, inplace = True) # 결측치가 아닌 공백을 결측치로 치환
+# 데이터프레임 각 행마다 앞 뒤 공백 제거
+sentence_df['sentence'] = sentence_df['sentence'].str.strip()
 
-'''
-결측치 제거
-'''
-# fixed_data_df.loc[fixed_data_Df.document.isnull()][:5] # 결측치 출력
-fixed_data_df = fixed_data_df.dropna(axis = 0)
-fixed_data_df.isnull().sum()
-fixed_data_df.shape
+# 정규 표현식 사용
+sentence_df['sentence'] = sentence_df['sentence'].str.replace("[^ㄱ-ㅎㅏ-ㅣ가-힣 ]","")
+sentence_df.head()
 
-'''
-데이터 저장, 198,884개 문장
-'''
-fixed_data_df.to_csv('./data/fixed_data.csv')
+# 결측치가 아닌 공백을 결측치로 치환
+sentence_df['sentence'].replace('', np.nan, inplace = True)
+sentence_df.head()
 
-'''
-단어 토큰화
-'''
-okt = Okt()
-original_data_df = pd.read_csv('./data/fixed_data.csv')
-test_data_df = original_data_df
+# ckonlpy Postprocessor value 정의, Twitter() 정의
+passtags = {'Noun'}
+twitter = Twitter()
 
-# 시간 오래 걸림
-stopwords = ['의','가','이','은','들','는','좀','잘','걍','과','도','를','으로','자','에','와','한','하다'] # 불용어
-tokenized_data = []
+# 불용어 정의
+stopwords = {
+    '의','가','이','은','들','는','좀','잘','걍','과', '로', '을'
+    '도','를','으로','자','에','와','한','하다', '어요'
+}
+
+
+postprocessor = Postprocessor(
+    base_tagger = twitter, # base tagger
+    stopwords = stopwords, # 해당 단어 필터
+    #passwords = passwords, # 해당 단어만 선택
+    passtags = passtags, # 해당 품사만 선택
+    #replace = replace, # 해당 단어 set 치환
+    #ngrams = ngrams # 해당 복합 단어 set을 한 단어로 결합
+)
+
+
+# 수정된 데이터프레임 리스트 변환
+input_sentence_list = sentence_df['sentence'][:10000].to_list()
+input_sentence_list
+
+
+# result = [postprocessor.pos(sentence) for sentence in input_sentence_list]
+
+# 토큰화 진행
+tokenized_nouns_list = []
 i = 0
-for text in test_data_df['document']:    
-    tokenized_text = okt.morphs(text, stem = True)
-    tokenized_text = [text for word in tokenized_text if not word in stopwords]
-    tokenized_data.append(tokenized_text)
+for sentence in input_sentence_list:
+    tokenized_word = postprocessor.pos(sentence)
+    tokenized_sentence_list = []
+    for word in tokenized_word:
+        tokenized_sentence_list.append(word[0])
+    tokenized_nouns_list.append(tokenized_sentence_list)
     i += 1
-    print('{}/{}'.format(i, len(test_data_df)))
+    print("{}/{}".format(i, len(input_sentence_list)))
+tokenized_nouns_list
 
 '''
-w2v 모델 학습, 모델 저장
+Word2Vec 학습
 '''
-model_new = w2v(tokenized_data, size = 100, window = 4, min_count = 0, workers = 4, iter = 100, sg = 1)
-model_new.save('./data/model_new.bin')
+model = w2v(tokenized_nouns_list, size=100, window=4, min_count=3, workers=4, sg=0)
+model.save('./data/model_new.bin')
 
 '''
-모델 불러오기
+벡터리스트 생성
 '''
-model = w2v.load('./data/model_new.bin')
+vector_list = [model.wv[v] for v in model.wv.vocab.keys()]
+model.wv.vocab.keys()
 
 '''
-단어 불러오기
+수정
 '''
-vector_np = model.wv
-vocabs = vector_np.vocab.keys()
-vector_list = [vector_np[v] for v in vocabs]
+# 단어사전 value 변경
+idx = 0
+for i in list(model.wv.vocab):
+    model.wv.vocab[i] = vector_list[idx]
+    idx += 1
+vocab = list(model.wv.vocab)
+len(vocab)
 
-# pre-trained 모델 단어 수
-print(len(list(vocabs)))
+'''
+각 단어에 대해 매핑
+'''
+model.wv.vocab['OOV'] = np.random.randn(100)
+encoded = []
+for word in vocab:
+    temp = []
+    for w in word:
+        try:
+            temp.append(model.wv.vocab[w])
+        except KeyError:
+            temp.append(model.wv.vocab['OOV'])
+    encoded.append(temp)
 
-# 단어 출력
-print(list(vocabs)[0])
-
-# 단어 벡터 출력
-len(vector_list)
+model.wv.vocab
