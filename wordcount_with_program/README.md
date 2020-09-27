@@ -1,4 +1,4 @@
-# CMD 화면에서 현재 폴더(wordcount_with_program)로 이동
+## CMD 화면에서 현재 폴더(wordcount_with_program)로 이동
 
   C> wordcount.exe text.txt
 
@@ -6,7 +6,7 @@
 
 
 
-# Example: 매우 큰 파일(위키 말뭉치 등 수천만 라인)에 대한 word count 방법
+## Example: 매우 큰 파일(위키 말뭉치 등 수천만 라인)에 대한 word count 방법
 
    C> split.exe -4m input.txt  --> xaa, xab, xac, ... 등으로 분할
 
